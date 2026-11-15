@@ -2,22 +2,27 @@
 <html lang="pl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#151a21" media="(prefers-color-scheme: dark)" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Budżet" />
-    <link rel="icon" href="icon.svg?v=4" type="image/svg+xml" />
+    <link rel="icon" href="icon.svg?v=5" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=4" />
+    <link rel="stylesheet" href="styles.css?v=5" />
     <title>Budżet</title>
   </head>
   <body>
     <div id="root"><div class="center-screen"><p class="pulse muted">Ładowanie…</p></div></div>
-    <script type="module" src="js/app.js?v=4"></script>
+    <script type="module" src="js/app.js?v=5"></script>
+    <script>
+      // iOS Safari ignores user-scalable=no for pinch and double-tap: block them here.
+      document.addEventListener("gesturestart", (e) => e.preventDefault());
+      document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+    </script>
     <noscript>Ta aplikacja wymaga JavaScriptu.</noscript>
   </body>
 </html>

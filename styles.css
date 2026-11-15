@@ -50,7 +50,8 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-height: 100dvh; background: var(--paper); }
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
+body { margin: 0; min-height: 100dvh; background: var(--paper); overflow-x: hidden; }
 h1, h2, h3, h4, p { margin: 0; }
 h2 { font-size: 1.5rem; font-stretch: 85%; font-weight: 800; letter-spacing: -0.02em; }
 h3 { font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: 6px; }
@@ -127,12 +128,16 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
 
 /* ---------- inputs ---------- */
 .input {
-  width: 100%; min-height: 46px; padding: 10px 14px; border-radius: 12px;
+  display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 46px; padding: 10px 14px; border-radius: 12px;
+  font-size: 16px; /* 16px+ stops iOS from zooming in on focus */
   border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 500;
 }
+.input[type="date"], .input[type="month"] { -webkit-appearance: none; appearance: none; text-align: left; line-height: 24px; }
+.input::-webkit-date-and-time-value { text-align: left; }
 .input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 select.input { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.form-grid > label { min-width: 0; }
 .form-grid .span2 { grid-column: span 2; }
 .check { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .check input { width: 18px; height: 18px; accent-color: var(--good); }
@@ -232,7 +237,7 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .md ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
 
 /* ---------- transactions ---------- */
-.filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .day-label { font-size: 0.8rem; font-weight: 700; color: var(--muted); text-transform: capitalize; margin: 6px 4px; }
 .tx-list { list-style: none; margin: 0; padding: 0; background: var(--surface); border-radius: var(--r-md); overflow: hidden; }
 .tx-list li + li { border-top: 1px solid var(--line); }
@@ -270,9 +275,10 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .imp-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .imp-line { display: flex; gap: 6px; }
 .imp-line .input { min-height: 40px; padding: 8px 10px; }
+.imp-line > .input { width: auto; }
 .imp-merchant { flex: 1; min-width: 0; font-weight: 600; }
-.imp-amt { width: 110px; text-align: right; font-weight: 700; }
-.imp-date { width: 150px; }
+.imp-amt { width: 110px !important; flex: none; text-align: right; font-weight: 700; }
+.imp-date { width: 150px !important; flex: none; }
 .imp-cat { flex: 1; min-width: 0; }
 .imp-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .tag { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--soft); color: var(--muted); }
@@ -312,7 +318,7 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .toast.error { background: var(--error); color: var(--on-c); }
 
 @media (max-width: 420px) {
-  .imp-date { width: 135px; }
-  .imp-amt { width: 92px; }
+  .imp-date { width: 135px !important; }
+  .imp-amt { width: 92px !important; }
   .filters { grid-template-columns: 1fr; }
 }
