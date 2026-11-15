@@ -1,4 +1,4 @@
-import { auth, googleProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } from "./firebase.js";
+import { auth, googleProvider, onAuthStateChanged, signInWithPopup, signOut } from "./firebase.js";
 import * as store from "./store.js";
 import { CATEGORIES, EXPENSE_CATS, INCOME_CATS, REVIEW, cat, classify, merchantKey } from "./categories.js";
 import {
@@ -99,16 +99,20 @@ onAuthStateChanged(auth, (user) => {
   render();
 });
 
+const LOGIN_ERRORS = {
+  "auth/popup-blocked": "Przeglądarka zablokowała okno logowania. Zezwól na wyskakujące okna dla tej strony i spróbuj ponownie.",
+  "auth/unauthorized-domain": "Ta domena nie jest dodana w Firebase: Authentication > Settings > Authorized domains.",
+  "auth/network-request-failed": "Brak połączenia. Sprawdź internet i spróbuj ponownie.",
+};
+
 async function login() {
   try {
     await signInWithPopup(auth, googleProvider);
   } catch (e) {
     const code = e?.code ?? "";
-    if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
-      await signInWithRedirect(auth, googleProvider);
-    } else if (code !== "auth/popup-closed-by-user" && code !== "auth/cancelled-popup-request") {
-      toast("Nie udało się zalogować: " + (code || e?.message), "error");
-    }
+    console.error(e);
+    if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return;
+    toast(LOGIN_ERRORS[code] ?? `Nie udało się zalogować (${code || e?.message}).`, "error");
   }
 }
 
