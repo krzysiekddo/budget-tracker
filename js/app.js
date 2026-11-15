@@ -84,8 +84,13 @@ onAuthStateChanged(auth, (user) => {
   unsub = null;
   if (user) {
     S.data = { loading: true, meta: null, txs: [], pending: false, error: null };
+    let restored = false;
     unsub = store.subscribe(user.uid, (d) => {
       S.data = d;
+      if (!restored && !d.loading) {
+        restored = true;
+        restoreImport();
+      }
       render();
     });
     store.checkServer(user.uid).then(
@@ -409,7 +414,8 @@ function addView() {
         : `<span class="drop-ico">${icon.camera}</span><b>Wrzuć screeny z historii płatności</b><span class="muted small">Możesz zaznaczyć kilka naraz albo wkleić (Ctrl+V). Nakładające się screeny nie zdublują transakcji.</span>`}
     </label>
     ${imp.error ? `<p class="error small">${esc(imp.error)}</p>` : ""}
-    ${imp.files.length ? `<button class="primary wide" data-action="recognize" ${imp.busy ? "disabled" : ""}>${imp.busy ? `<span class="spinner"></span> Czytam screeny…` : `${icon.sparkle} Rozpoznaj transakcje`}</button>` : ""}
+    ${imp.busy ? `<p class="small muted">Nie zamykaj apki, zwykle trwa to kilka–kilkanaście sekund.</p>` : ""}
+    ${imp.files.length ? `<button class="primary wide" data-action="recognize" ${imp.busy ? "disabled" : ""}>${imp.busy ? `<span class="spinner"></span> Czytam screeny… ${imp.done}/${imp.files.length} · ${Math.round((Date.now() - imp.started) / 1000)} s` : `${icon.sparkle} Rozpoznaj transakcje`}</button>` : ""}
 
     <div class="card">
       <div class="card-head"><h3>💰 Wypłata</h3></div>
@@ -435,6 +441,7 @@ function importReview() {
   const toReview = chosen.filter((r) => r.category === REVIEW || r.status === "review").length;
   return `<section class="page">
     <div class="page-head"><h2>Sprawdź i zapisz</h2><button class="link" data-action="imp-cancel">Anuluj</button></div>
+    ${S.imp.error ? `<p class="error small">${esc(S.imp.error)}</p>` : ""}
     <p class="small muted">Rozpoznano ${rows.length} transakcji. Możesz poprawić dane przed zapisem. ${rows.some((r) => r.dup) ? "Wyszarzone są już w apce (duplikaty)." : ""}</p>
     <ul class="imp-list">${rows.map((r, i) => `
       <li class="imp ${r.include ? "" : "off"} ${r.status === "review" ? "needs" : ""}">
@@ -461,17 +468,42 @@ function importReview() {
   </section>`;
 }
 
+const IMPORT_KEY = "budzet.import";
+
 async function recognize() {
   const imp = S.imp;
   imp.busy = true;
   imp.error = null;
+  imp.done = 0;
+  imp.started = Date.now();
   render();
+  // Keep the phone screen on while the AI reads the screenshots.
+  let lock = null;
+  try {
+    lock = await navigator.wakeLock?.request("screen");
+  } catch {}
+  const tick = setInterval(render, 1000);
+  const failed = [];
+  let found = [];
   try {
     const { readScreenshots } = await import("./ai.js");
     const today = todayIso();
-    let found = [];
-    for (let i = 0; i < imp.files.length; i += 5) found.push(...(await readScreenshots(imp.files.slice(i, i + 5), today)));
-    // Drop exact repeats from overlapping screenshots sent in different chunks.
+    // One request per screenshot, up to 3 at a time: much faster than one big request.
+    const queue = imp.files.map((f, i) => ({ f, i }));
+    const worker = async () => {
+      while (queue.length) {
+        const { f, i } = queue.shift();
+        try {
+          found.push(...(await readScreenshots([f], today)));
+        } catch (e) {
+          console.error(e);
+          failed.push({ i, e });
+        }
+        imp.done++;
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    // Overlapping screenshots show the same transactions: keep each one once.
     const seen = new Set();
     found = found.filter((t) => {
       const k = `${t.date}|${t.amount}|${merchantKey(t.merchant)}`;
@@ -479,8 +511,10 @@ async function recognize() {
       seen.add(k);
       return true;
     });
+    if (failed.length === imp.files.length) throw failed[0].e;
+    if (failed.length) imp.error = `Nie udało się odczytać ${failed.length} z ${imp.files.length} screenów (${failed.map((x) => x.i + 1).join(", ")}). Możesz je wrzucić jeszcze raz.`;
     if (!found.length) {
-      imp.error = "Nie znalazłem żadnych transakcji na tych screenach. Upewnij się, że widać listę płatności z kwotami.";
+      imp.error ??= "Nie znalazłem żadnych transakcji na tych screenach. Upewnij się, że widać listę płatności z kwotami.";
     } else {
       const L = learned();
       imp.rows = found
@@ -490,13 +524,34 @@ async function recognize() {
           const dup = isDuplicate(t);
           return { ...t, ...c, key: rid(), dup, include: !dup };
         });
+      imp.files = [];
+      persistImport();
     }
   } catch (e) {
     console.error(e);
     imp.error = "Rozpoznawanie nie zadziałało: " + store.describeError(e);
   }
+  clearInterval(tick);
+  lock?.release?.().catch(() => {});
   imp.busy = false;
   render();
+}
+
+/** The review list survives a reload (e.g. iOS closing the app in the background). */
+function persistImport() {
+  try {
+    if (S.imp.rows) localStorage.setItem(IMPORT_KEY, JSON.stringify({ uid: uid(), rows: S.imp.rows, at: Date.now() }));
+    else localStorage.removeItem(IMPORT_KEY);
+  } catch {}
+}
+function restoreImport() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(IMPORT_KEY) ?? "null");
+    if (saved?.uid === uid() && saved.rows?.length && Date.now() - saved.at < 3 * 864e5) {
+      S.imp.rows = saved.rows;
+      S.view = "add";
+    }
+  } catch {}
 }
 
 function isDuplicate(t) {
@@ -524,6 +579,7 @@ async function saveImport() {
   // Categories chosen by hand in this review are remembered for the merchant.
   const learnNow = rows.filter((r) => r.via === "manual" && r.category !== REVIEW);
   S.imp = { files: [], rows: null, busy: false, error: null };
+  persistImport();
   S.view = txs.some((t) => t.status === "review") ? "tx" : "home";
   if (S.view === "tx") S.filter = { cat: REVIEW, q: "" };
   const months = new Set(txs.map((t) => monthOf(t.date)));
@@ -979,7 +1035,7 @@ root.addEventListener("click", async (e) => {
     }
     case "rm-file": e.preventDefault(); S.imp.files.splice(Number(d.i), 1); return render();
     case "recognize": return recognize();
-    case "imp-cancel": S.imp = { files: [], rows: null, busy: false, error: null }; return render();
+    case "imp-cancel": S.imp = { files: [], rows: null, busy: false, error: null }; persistImport(); return render();
     case "imp-save": return saveImport();
     case "add-salary": {
       const amount = num(document.getElementById("sal-amt").value);
@@ -1118,6 +1174,7 @@ root.addEventListener("input", (e) => {
       r.amount = num(el.value);
       if (wasIncome !== r.amount > 0) render();
     } else r[el.dataset.f] = el.value;
+    persistImport();
   }
 });
 
@@ -1136,6 +1193,7 @@ root.addEventListener("change", (e) => {
       r.status = el.value === REVIEW ? "review" : "ok";
       r.via = "manual";
     }
+    persistImport();
     render();
   }
 });

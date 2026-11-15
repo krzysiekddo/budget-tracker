@@ -19,25 +19,35 @@ async function generate(buildRequest, generationConfig) {
   const order = remembered ? [remembered, ...MODELS.filter((m) => m !== remembered)] : MODELS;
   let lastErr;
   for (const model of order) {
-    try {
-      const m = mod.getGenerativeModel(inst, { model, generationConfig });
-      const res = await m.generateContent(buildRequest());
-      localStorage.setItem(MODEL_KEY, model);
-      return res.response.text();
-    } catch (e) {
-      lastErr = e;
-      const msg = String(e?.message ?? e);
-      // Only fall through to the next model when this one does not exist / is not allowed.
-      if (!/not found|404|not supported|unsupported|is not available|permission|403/i.test(msg)) throw e;
-      if (/app.?check/i.test(msg)) throw e;
-      console.warn(`Model ${model} unavailable`, msg);
+    let config = generationConfig;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const m = mod.getGenerativeModel(inst, { model, generationConfig: config });
+        const res = await m.generateContent(buildRequest());
+        localStorage.setItem(MODEL_KEY, model);
+        return res.response.text();
+      } catch (e) {
+        lastErr = e;
+        const msg = String(e?.message ?? e);
+        // Older models do not know thinkingLevel: retry once without it.
+        if (attempt === 0 && config?.thinkingConfig && /thinking/i.test(msg)) {
+          const { thinkingConfig, ...rest } = config;
+          config = rest;
+          continue;
+        }
+        // Only fall through to the next model when this one does not exist / is not allowed.
+        if (!/not found|404|not supported|unsupported|is not available|permission|403/i.test(msg)) throw e;
+        if (/app.?check/i.test(msg)) throw e;
+        console.warn(`Model ${model} unavailable`, msg);
+        break;
+      }
     }
   }
   throw lastErr;
 }
 
 /** Downscales an image file to JPEG base64 so requests stay small. */
-export async function fileToBase64Jpeg(file, maxSide = 1800) {
+export async function fileToBase64Jpeg(file, maxSide = 1600) {
   const bmp = await createImageBitmap(file);
   const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
   const w = Math.round(bmp.width * scale);
@@ -90,9 +100,10 @@ ${catList}`;
 
   const text = await generate(
     () => [prompt, ...images.map((img) => ({ inlineData: { data: img.data, mimeType: img.mimeType } }))],
-    { responseMimeType: "application/json", responseSchema: schema, temperature: 0.1 },
+    // Reading a list off a screenshot needs little reasoning; LOW keeps it to seconds, not a minute.
+    { responseMimeType: "application/json", responseSchema: schema, temperature: 0.1, thinkingConfig: { thinkingLevel: "LOW" } },
   );
-  const parsed = JSON.parse(text);
+  const parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   return (parsed.transactions ?? [])
     .filter((t) => Number.isFinite(Number(t.amount)) && Number(t.amount) !== 0)
     .map((t) => ({
