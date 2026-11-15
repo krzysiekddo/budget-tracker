@@ -285,8 +285,8 @@ function homeView() {
     </div>
 
     <div class="card">
-      <div class="card-head"><h3>Dzień po dniu</h3>${isCurrent && perDay ? `<span class="muted small legend-line">limit dzienny ${zl(perDay)}</span>` : ""}</div>
-      ${dailyBars(s.days, { allowed: isCurrent && income ? (income - s.saved) / dim : 0, today: isCurrent ? day : 0 })}
+      <div class="card-head"><h3>Dzień po dniu</h3>${income > 0 ? `<span class="muted small">- - - budżet na dzień ${zl((income - s.saved) / dim)}</span>` : ""}</div>
+      ${dailyBars(s.days, { allowed: income > 0 ? (income - s.saved) / dim : 0, today: isCurrent ? day : 0 })}
     </div>
 
     <div class="card">

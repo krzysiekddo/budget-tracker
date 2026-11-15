@@ -59,7 +59,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
 button:disabled { cursor: default; opacity: 0.45; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+svg:not(.donut):not(.bars) { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.donut, .bars { stroke: none; }
+.donut text, .bars text { stroke: none; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
 
 .muted { color: var(--muted); }
@@ -187,6 +189,7 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .donut { width: min(220px, 70vw); height: auto; }
 .donut circle { transition: stroke-dasharray 0.4s; }
 .donut-main { font-size: 22px; fill: var(--ink); }
+.donut circle { fill: none; }
 .donut-sub { font-size: 12px; fill: var(--muted); }
 .cat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cat-row { width: 100%; display: flex; gap: 12px; align-items: center; text-align: left; padding: 8px 4px; border-radius: 12px; }
