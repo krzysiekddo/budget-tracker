@@ -504,13 +504,9 @@ async function recognize() {
     };
     await Promise.all([worker(), worker(), worker()]);
     // Overlapping screenshots show the same transactions: keep each one once.
-    const seen = new Set();
-    found = found.filter((t) => {
-      const k = `${t.date}|${t.amount}|${merchantKey(t.merchant)}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
+    const unique = [];
+    for (const t of found) if (!unique.some((u) => sameTx(u, t))) unique.push(t);
+    found = unique;
     if (failed.length === imp.files.length) throw failed[0].e;
     if (failed.length) imp.error = `Nie udało się odczytać ${failed.length} z ${imp.files.length} screenów (${failed.map((x) => x.i + 1).join(", ")}). Możesz je wrzucić jeszcze raz.`;
     if (!found.length) {
@@ -554,13 +550,19 @@ function restoreImport() {
   } catch {}
 }
 
+/** Same day, same amount and a matching merchant ("BOLT.EU" = "Bolt"). */
+function sameTx(a, b) {
+  if (a.date !== b.date || Math.abs(a.amount - b.amount) > 0.005) return false;
+  const ka = merchantKey(a.merchant).replace(/[^a-z0-9 ]/g, "");
+  const kb = merchantKey(b.merchant).replace(/[^a-z0-9 ]/g, "");
+  if (!ka || !kb) return true;
+  const fa = ka.split(" ")[0];
+  const fb = kb.split(" ")[0];
+  return ka === kb || ka.includes(kb) || kb.includes(ka) || fa === fb || fa.startsWith(fb) || fb.startsWith(fa);
+}
+
 function isDuplicate(t) {
-  const k = merchantKey(t.merchant);
-  return S.data.txs.some((x) => {
-    if (x.date !== t.date || Math.abs(x.amount - t.amount) > 0.005) return false;
-    const xk = merchantKey(x.merchant);
-    return !k || !xk || xk === k || xk.includes(k) || k.includes(xk) || xk.split(" ")[0] === k.split(" ")[0];
-  });
+  return S.data.txs.some((x) => sameTx(x, t));
 }
 
 async function saveImport() {
